@@ -458,7 +458,7 @@ msgid "Label"
 msgstr ""
 
 #: res/i18n/html_strings.py:86
-msgid "Server Connexion"
+msgid "Server Connection"
 msgstr ""
 
 #: res/i18n/html_strings.py:87

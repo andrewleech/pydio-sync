@@ -385,7 +385,7 @@ msgstr "Parameters van sync %1"
 msgid "Label"
 msgstr "Label"
 #: res/i18n/html_strings.py:86
-msgid "Server Connexion"
+msgid "Server Connection"
 msgstr "Server"
 #: res/i18n/html_strings.py:87
 msgid "Login"
