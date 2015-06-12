@@ -21,7 +21,7 @@
 
 import os, sys
 import locale
-import gettext
+import gettext as _gettext
 from pathlib import *
 
 # Change this variable to your app name!
@@ -58,18 +58,26 @@ def get_languages():
 
 languages = get_languages()
 mo_location = LOCALE_DIR
-gettext.install(True, localedir=None, unicode=1)
-gettext.find(APP_NAME, mo_location)
-gettext.textdomain (APP_NAME)
-gettext.bind_textdomain_codeset(APP_NAME, "UTF-8")
-language = gettext.translation(APP_NAME, mo_location, languages=languages, fallback=True)
+if sys.version_info >= (3, 0):
+    _gettext.install(True, localedir=None)
+else:
+    _gettext.install(True, localedir=None, unicode=1)
+_gettext.find(APP_NAME, mo_location)
+_gettext.textdomain (APP_NAME)
+_gettext.bind_textdomain_codeset(APP_NAME, "UTF-8")
+language = _gettext.translation(APP_NAME, mo_location, languages=languages, fallback=True)
+
+if sys.version_info >= (3, 0):
+    gettext = language.gettext
+else:
+    gettext = language.ugettext
 
 """
 Utilitary to transform HTML strings to PO compatible strings.
 Process is the following
 * In PY files, declare the following import, and use _('')
     from pydio.utils import i18n
-    _ = i18n.language.ugettext
+    _ = i18n.gettext
 * In HTML files, Use {{_('')}} function.
     Make sure to assign the function to the scope:
     > $scope._ = window.translate;

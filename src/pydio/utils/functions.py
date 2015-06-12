@@ -18,8 +18,10 @@
 #  The latest code can be found at <http://pyd.io/>.
 #
 import os,sys
-import urllib2
-
+try:
+    import urllib2
+except ImportError:
+    import urllib as urllib2 
 
 def hashfile(afile, hasher, blocksize=65536):
     buf = afile.read(blocksize)
@@ -37,7 +39,7 @@ def set_file_hidden(path):
 
 def get_user_home(app_name):
     if sys.platform == 'win32':
-        from arch.win.expanduser import expand_user as win_expand
+        from .arch.win.expanduser import expand_user as win_expand
         return os.path.join(win_expand(), app_name)
     else:
         return os.path.join(os.path.expanduser('~'), app_name)

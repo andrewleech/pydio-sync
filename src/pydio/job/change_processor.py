@@ -22,7 +22,7 @@ import logging
 import shutil
 from pydio.utils.global_config import ConfigManager
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 
 class ChangeProcessor:

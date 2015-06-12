@@ -44,7 +44,7 @@ from pydio import PUBLISH_SIGNAL, TRANSFER_RATE_SIGNAL, TRANSFER_CALLBACK_SIGNAL
 from pydio.utils.global_config import ConfigManager
 
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 
 class ContinuousDiffMerger(threading.Thread):
@@ -81,7 +81,8 @@ class ContinuousDiffMerger(threading.Thread):
         self.remote_target_seq = 0
         self.local_seqs = []
         self.remote_seqs = []
-        self.db_handler = LocalDbHandler(self.configs_path, job_config.directory)
+        self.job_config_directory = job_config.directory
+        self.db_handler = None#LocalDbHandler(self.configs_path, job_config.directory)
         self.interrupt = False
         self.event_timer = 2
         self.online_timer = 10
@@ -109,7 +110,6 @@ class ContinuousDiffMerger(threading.Thread):
             self.watcher = LocalWatcher(job_config.directory,
                                         self.configs_path,
                                         event_handler=self.event_handler)
-            self.db_handler.check_lock_on_event_handler(self.event_handler)
 
         if os.path.exists(self.configs_path + "/sequences"):
             try:
@@ -316,6 +316,9 @@ class ContinuousDiffMerger(threading.Thread):
         logger = EventLogger(self.configs_path)
         very_first = False
 
+        self.db_handler = LocalDbHandler(self.configs_path, self.job_config_directory)
+        self.db_handler.check_lock_on_event_handler(self.event_handler)
+
         if self.watcher:
             if self.watcher_first_run:
                 def status_callback(status):
@@ -411,9 +414,11 @@ class ContinuousDiffMerger(threading.Thread):
                     self.sleep_offline()
                     continue
                 except Exception as e:
-                    error = 'Error while connecting to remote server (%s), waiting for %i seconds before retempting ' % (e.message, self.offline_timer)
+                    error = 'Error while connecting to remote server (%s), waiting for %i seconds before retempting ' % (str(e), self.offline_timer)
                     logging.error(error)
-                    logger.log_state(_('Error while connecting to remote server (%s)') % e.message, "error")
+                    import traceback
+                    logging.debug(traceback.format_exc())
+                    logger.log_state(_('Error while connecting to remote server (%s)') % str(e), "error")
                     self.marked_for_snapshot_pathes = []
                     self.sleep_offline()
                     continue
@@ -500,14 +505,14 @@ class ContinuousDiffMerger(threading.Thread):
                             raise InterruptException()
 
                     except ProcessException as pe:
-                        logging.error(pe.message)
+                        logging.error(str(pe))
                         return False
                     except InterruptException as i:
                         raise i
                     except PydioSdkDefaultException as p:
                         raise p
                     except Exception as ex:
-                        logging.exception(ex.message)
+                        logging.exception(str(ex))
                         return False
                     return True
 
@@ -522,39 +527,40 @@ class ContinuousDiffMerger(threading.Thread):
                     logger.log_notif(_('%i files modified') % self.global_progress['queue_done'], 'success')
 
             except PydioSdkDefaultException as re:
-                logging.error(re.message)
-                logger.log_state(re.message, 'error')
+                logging.error(str(re))
+                logger.log_state(str(re), 'error')
             except SSLError as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('An SSL error happened, please check the logs'), 'error')
             except ProxyError as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('A proxy error happened, please check the logs'), 'error')
             except TooManyRedirects as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('Connection error: too many redirects'), 'error')
             except ChunkedEncodingError as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('Chunked encoding error, please check the logs'), 'error')
             except ContentDecodingError as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('Content Decoding error, please check the logs'), 'error')
             except InvalidSchema as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('Http connection error: invalid schema.'), 'error')
             except InvalidURL as rt:
-                logging.error(rt.message)
+                logging.error(str(rt))
                 logger.log_state(_('Http connection error: invalid URL.'), 'error')
             except Timeout as to:
                 logging.error(to)
                 logger.log_state(_('Connection timeout, will retry later.'), 'error')
             except RequestException as ree:
-                logging.error(ree.message)
+                logging.error(str(ree))
                 logger.log_state(_('Cannot resolve domain!'), 'error')
             except Exception as e:
-                if not (e.message.lower().count('[quota limit reached]') or e.message.lower().count('[file permissions]')):
-                    logging.exception('Unexpected Error: %s' % e.message)
-                    logger.log_state(_('Unexpected Error: %s') % e.message, 'error')
+
+                if not (str(e).lower().count('[quota limit reached]') or str(e).lower().count('[file permissions]')):
+                    logging.exception('Unexpected Error: %s' % str(e))
+                    logger.log_state(_('Unexpected Error: %s') % str(e), 'error')
 
             logging.debug('Finished this cycle, waiting for %i seconds' % self.online_timer)
             self.exit_loop_clean(logger)

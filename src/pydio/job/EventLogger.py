@@ -77,7 +77,7 @@ class EventLogger():
 
             conn.commit()
         except sqlite3.Error as e:
-            logging.error('sql insert error while trying to log event : %s ' % (e.message,))
+                logging.error('sql insert error while trying to log event : %s ' % str(e))
         conn.close()
 
     def get_all(self, limit=10, offset=0, filter_type=None, filter_action=None):

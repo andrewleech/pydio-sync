@@ -19,7 +19,7 @@
 #
 # Get needed open ports on the system and save it to a config file that will be used to
 # sync the client/UI connection ports
-import random, string
+import sys, random, string
 
 class PortsDetector():
 
@@ -37,7 +37,8 @@ class PortsDetector():
 
     @staticmethod
     def random_string():
-        return ''.join([random.choice(string.ascii_letters + string.digits) for n in xrange(16)])
+        rng = range if sys.version_info >= (3, 0) else xrange
+        return ''.join([random.choice(string.ascii_letters + string.digits) for n in rng(16)])
 
     def get_port(self):
         if self.default_port_ok():

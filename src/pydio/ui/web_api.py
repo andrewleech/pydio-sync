@@ -41,10 +41,10 @@ from pathlib import *
 from pydio.utils.global_config import ConfigManager
 from pydio.utils.functions import connection_helper
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 from functools import wraps
-import authdigest
+from .authdigest import RealmDigestDB
 import flask
 try:
     from pydio.endpoint.resolver import EndpointResolver, RESOLVER_CONFIG, EndpointException
@@ -53,7 +53,7 @@ except ImportError:
     RESOLVER_CONFIG = False
     EndpointException = False
 
-class FlaskRealmDigestDB(authdigest.RealmDigestDB):
+class FlaskRealmDigestDB(RealmDigestDB):
     def requires_auth(self, f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -283,25 +283,25 @@ class WorkspacesManager(Resource):
             logging.debug("Error while loading workspaces : " + message)
             return {'error': message}, resp.status_code
         except SSLError as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _("An SSL error happened! Is your server using a self-signed certificate? In that case please check 'Trust SSL certificate'")}, 400
         except ProxyError as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('A proxy error happened, please check the logs')}, 400
         except TooManyRedirects as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('Connection error: too many redirects')}, 400
         except ChunkedEncodingError as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('Chunked encoding error, please check the logs')}, 400
         except ContentDecodingError as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('Content Decoding error, please check the logs')}, 400
         except InvalidSchema as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('Http connection error: invalid schema.')}, 400
         except InvalidURL as rt:
-            logging.error(rt.message)
+            logging.error(str(rt))
             return {'error': _('Http connection error: invalid URL.')}, 400
         except ValueError:
             message = "Error while parsing request result:" + resp.content
@@ -311,7 +311,7 @@ class WorkspacesManager(Resource):
             logging.error(to)
             return {'error': _('Connection timeout!')}, 400
         except RequestException as ree:
-            logging.error(ree.message)
+            logging.error(str(ree))
             return {'error': _('Cannot resolve domain!')}, 400
 
 
@@ -522,4 +522,4 @@ class ResolverManager(Resource):
         try:
             return EndpointResolver.Instance().get_customer_endpoints(client_id)
         except EndpointException as e:
-            return {'message': e.message, 'code': e.error_id}, 500
+            return {'message': str(e), 'code': e.error_id}, 500

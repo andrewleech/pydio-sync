@@ -21,12 +21,12 @@ import subprocess
 import os
 import hashlib
 import stat
-from exceptions import SystemSdkException
+from .exceptions import SystemSdkException
 from pydio.utils.functions import hashfile
 from pydio.utils.global_config import ConfigManager
 import shutil
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 class SystemSdk(object):
 

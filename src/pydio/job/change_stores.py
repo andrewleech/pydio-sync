@@ -24,13 +24,14 @@ import os
 import logging
 import fnmatch
 import math
+import six
 
 from pydio.sdk.exceptions import InterruptException
 
 
 class SqliteChangeStore():
     conn = None
-    DEBUG = False;
+    DEBUG = False
 
     def __init__(self, filename, includes, excludes):
         self.db = filename
@@ -547,13 +548,16 @@ class SqliteChangeStore():
             return True
         return False
 
-    def flatten_and_store(self, location, row, last_info=dict()):
-        previous_id = last_info['node_id'] if (last_info and last_info.has_key('node_id')) else -1
-        change = last_info['change'] if (last_info and last_info.has_key('change')) else dict()
-        max_seq = last_info['max_seq'] if (last_info and last_info.has_key('max_seq')) else -1
+    def flatten_and_store(self, location, row, last_info=None):
+        if not isinstance(last_info, dict):
+            last_info=dict()
+
+        previous_id = last_info.get('node_id', -1)
+        change = last_info.get('change', dict())
+        max_seq = last_info.get('max_seq', -1)
 
         if not row:
-            if last_info and last_info.has_key('change') and change:
+            if change and 'seq' in change:
                 seq = change['seq']
                 first, second = self.reformat(change)
                 if first:
@@ -626,12 +630,12 @@ class SqliteChangeStore():
                content = 'content'
 
         if content != 'edit_move':
-            stat_result = change['node'].pop('stat_result') if change['node'].has_key('stat_result') else None
+            stat_result = change['node'].pop('stat_result') if 'stat_result' in change['node'] else None
             return {'location': 'local', 'node_id': change['node'].pop('node_id'), 'source':  source, 'target': target, 'type': content, 'seq':change.pop('seq'), 'stat_result': stat_result, 'node': change['node']}, None
         else:
             seq = change.pop('seq')
             node_id = change['node'].pop('node_id')
-            stat_result = change['node'].pop('stat_result') if change['node'].has_key('stat_result') else None
+            stat_result = change['node'].pop('stat_result') if 'stat_result' in change['node'] else None
             return {'location': 'local', 'node_id': node_id, 'source':  source, 'target': 'NULL', 'type': 'delete', 'seq':seq, 'stat_result':stat_result, 'node':None},\
                    {'location': 'local', 'node_id': node_id, 'source':  'NULL', 'target': target, 'type': 'create', 'seq':seq, 'stat_result':stat_result, 'node': change['node']}
 

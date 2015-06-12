@@ -18,6 +18,7 @@
 #  The latest code can be found at <http://pyd.io/>.
 #
 
+import six
 import urllib
 import json
 import hmac
@@ -27,7 +28,10 @@ import platform
 from pydio.utils.functions import hashfile
 from hashlib import sha256
 from hashlib import sha1
-from urlparse import urlparse
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
 
 
 from requests.exceptions import ConnectionError, RequestException
@@ -35,12 +39,12 @@ import keyring
 from keyring.errors import PasswordSetError
 import xml.etree.ElementTree as ET
 
-from exceptions import PydioSdkException, PydioSdkBasicAuthException, PydioSdkTokenAuthException, \
+from .exceptions import PydioSdkException, PydioSdkBasicAuthException, PydioSdkTokenAuthException, \
     PydioSdkQuotaException, PydioSdkPermissionException, PydioSdkTokenAuthNotSupportedException
 from .utils import *
 from pydio import TRANSFER_RATE_SIGNAL, TRANSFER_CALLBACK_SIGNAL
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 # -*- coding: utf-8 -*-
 
@@ -163,7 +167,7 @@ class PydioSdk():
             raise PydioSdkTokenAuthNotSupportedException("token_auth")
 
         try:
-            tokens = json.loads(resp.content)
+            tokens = resp.json()
         except ValueError as v:
             raise PydioSdkException("basic_auth", "", "Cannot parse JSON result: " + resp.content + "")
             #return False
@@ -228,10 +232,10 @@ class PydioSdk():
         :param with_progress: dict an object that can be updated with various progress data
         :return: Http response
         """
-        nonce = sha1(str(random.random())).hexdigest()
+        nonce = sha1(str(random.random()).encode()).hexdigest()
         uri = urlparse(url).path.rstrip('/')
         msg = uri + ':' + nonce + ':' + private
-        the_hash = hmac.new(str(token), str(msg), sha256)
+        the_hash = hmac.new(str(token).encode(), str(msg).encode(), sha256)
         auth_hash = nonce + ':' + the_hash.hexdigest()
 
         if request_type == 'get':
@@ -344,7 +348,7 @@ class PydioSdk():
         except requests.exceptions.ConnectionError:
             raise
         try:
-            return json.loads(resp.content)
+            return resp.json()
         except ValueError as v:
             raise Exception(_("Invalid JSON value received while getting remote changes. Is the server correctly configured?"))
 
@@ -369,20 +373,21 @@ class PydioSdk():
         info = dict()
         info['max_seq'] = last_seq
         for line in resp.iter_lines(chunk_size=512):
-            if line:
-                if str(line).startswith('LAST_SEQ'):
+            if isinstance(line, (str, bytes)):
+                str_line = line.decode()
+                if str_line.startswith('LAST_SEQ'):
                     #call the merge function with NULL row
                     callback('remote', None, info)
-                    return int(line.split(':')[1])
+                    return int(str_line.split(':')[1])
                 else:
                     try:
-                        one_change = json.loads(line)
+                        one_change = json.loads(str_line)
                         node = one_change.pop('node')
-                        one_change = dict(node.items() + one_change.items())
+                        one_change.update(node)
                         callback('remote', one_change, info)
 
                     except ValueError as v:
-                        logging.error('Invalid JSON Response, line was ' + line)
+                        logging.error('Invalid JSON Response, line was ' + str_line)
                         raise Exception(_('Invalid JSON value received while getting remote changes'))
                     except Exception as e:
                         raise e
@@ -423,7 +428,7 @@ class PydioSdk():
                 resp = self.perform_request(url)
 
             try:
-                data = json.loads(resp.content)
+                data = resp.json()
             except ValueError as ve:
                 return False
             logging.debug("data: %s" % data)
@@ -435,7 +440,7 @@ class PydioSdk():
                 return False
         except requests.exceptions.ConnectionError:
             raise
-        except Exception, ex:
+        except Exception as ex:
             logging.warning("Stat failed", exc_info=ex)
             return False
 
@@ -455,14 +460,14 @@ class PydioSdk():
 
         from requests.exceptions import Timeout
         # NORMALIZE PATHES FROM START
-        pathes = map(lambda p: self.normalize(p), pathes)
+        pathes = list(map(lambda p: self.normalize(p), pathes))
 
         action = '/stat_hash' if with_hash else '/stat'
         data = dict()
         maxlen = min(len(pathes), self.stat_slice_number)
-        clean_pathes = map(lambda t: self.remote_folder + t.replace('\\', '/'),
-                           filter(lambda x: x != '', pathes[:maxlen]))
-        data['nodes[]'] = map(lambda p: self.normalize(p), clean_pathes)
+        clean_pathes = list(map(lambda t: self.remote_folder + t.replace('\\', '/'),
+                           filter(lambda x: x != '', pathes[:maxlen])))
+        data['nodes[]'] = list(map(lambda p: self.normalize(p), clean_pathes))
         url = self.url + action + self.urlencode_normalized(clean_pathes[0])
         try:
             resp = self.perform_request(url, type='post', data=data)
@@ -474,7 +479,7 @@ class PydioSdk():
             return self.bulk_stat(pathes, result=result, with_hash=with_hash)
 
         try:
-            data = json.loads(resp.content)
+            data = resp.json()
         except ValueError:
             logging.debug("url: %s" % url)
             logging.debug("resp.content: %s" % resp.content)
@@ -536,7 +541,7 @@ class PydioSdk():
         """
         data = dict()
         data['ignore_exists'] = 'true'
-        data['nodes[]'] = map(lambda t: self.normalize(self.remote_folder + t), filter(lambda x: x != '', pathes))
+        data['nodes[]'] = list(map(lambda t: self.normalize(self.remote_folder + t), filter(lambda x: x != '', pathes)))
         url = self.url + '/mkdir' + self.urlencode_normalized(self.remote_folder + pathes[0])
         resp = self.perform_request(url=url, type='post', data=data)
         self.is_pydio_error_response(resp)
@@ -614,7 +619,7 @@ class PydioSdk():
         resp = self.perform_request(url=url)
         server_data = dict()
         try:
-            data = json.loads(resp.content)
+            data = resp.json()
             plugins = data['plugins']
             for p in plugins['ajxpcore']:
                 if p['@id'] == 'core.uploader':
@@ -631,7 +636,7 @@ class PydioSdk():
                         else:
                             for prop in properties:
                                 server_data[prop['@name']] = prop['$']
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             pass
         return server_data
 
@@ -679,15 +684,15 @@ class PydioSdk():
         try:
             self.perform_request(url=url, type='post', data=data, files=files, with_progress=callback_dict)
         except PydioSdkDefaultException as e:
-            if e.message == '507':
+            if str(e) == '507':
                 usage, total = self.quota_usage()
                 raise PydioSdkQuotaException(path, local_stat['size'], usage, total)
-            if e.message == '412':
+            if str(e) == '412':
                 raise PydioSdkPermissionException('Cannot upload '+os.path.basename(path)+' in directory '+os.path.dirname(path))
             else:
                 raise e
         except RequestException as ce:
-            raise PydioSdkException("upload", path, 'RequestException: ' + ce.message)
+            raise PydioSdkException("upload", path, 'RequestException: ' + str(ce))
 
         new = self.stat(path)
         if not new or not (new['size'] == local_stat['size']):
@@ -785,7 +790,7 @@ class PydioSdk():
         except Exception as e:
             if os.path.exists(local_tmp):
                 os.unlink(local_tmp)
-            raise PydioSdkException('download', path, _('Error while downloading file: %s') % e.message)
+            raise PydioSdkException('download', path, _('Error while downloading file: %s') % str(e))
 
     def list(self, dir=None, nodes=list(), options='al', recursive=False, max_depth=1, remote_order='', order_column='', order_direction='', max_nodes=0, call_back=None):
         url = self.url + '/ls' + self.urlencode_normalized(self.remote_folder)
@@ -835,7 +840,7 @@ class PydioSdk():
         files = dict()
         for line in resp.iter_lines(chunk_size=512):
             if not str(line).startswith('LAST_SEQ'):
-                element = json.loads(line)
+                element = resp.json()
                 if call_back:
                     call_back(element)
                 else:
@@ -853,7 +858,7 @@ class PydioSdk():
     def quota_usage(self):
         url = self.url + '/monitor_quota/'
         resp = self.perform_request(url=url, type='post')
-        quota = json.loads(resp.text)
+        quota = resp.json()
         return quota['USAGE'], quota['TOTAL']
 
     def has_disk_space_for_upload(self, path, file_size):
@@ -923,27 +928,27 @@ class PydioSdk():
 
         def parse_upload_rep(http_response):
             if http_response.headers.get('content-type') != 'application/octet-stream':
-                if unicode(http_response.text).count('message type="ERROR"'):
+                if six.u(http_response.text).count('message type="ERROR"'):
 
-                    if unicode(http_response.text).lower().count("(507)"):
+                    if six.u(http_response.text).lower().count("(507)"):
                         raise PydioSdkDefaultException('507')
 
-                    if unicode(http_response.text).lower().count("(412)"):
+                    if six.u(http_response.text).lower().count("(412)"):
                         raise PydioSdkDefaultException('412')
 
                     import re
                     # Remove XML tags
-                    text = re.sub('<[^<]+>', '', unicode(http_response.text))
+                    text = re.sub('<[^<]+>', '', six.u(http_response.text))
                     raise PydioSdkDefaultException(text)
 
-                if unicode(http_response.text).lower().count("(507)"):
+                if six.u(http_response.text).lower().count("(507)"):
                     raise PydioSdkDefaultException('507')
 
-                if unicode(http_response.text).lower().count("(412)"):
+                if six.u(http_response.text).lower().count("(412)"):
                     raise PydioSdkDefaultException('412')
 
-                if unicode(http_response.text).lower().count("(410)") or unicode(http_response.text).lower().count("(411)"):
-                    raise PydioSdkDefaultException(unicode(http_response.text))
+                if six.u(http_response.text).lower().count("(410)") or six.u(http_response.text).lower().count("(411)"):
+                    raise PydioSdkDefaultException(six.u(http_response.text))
 
 
 

@@ -71,7 +71,7 @@ class ThreadManager(object):
             while self.continue_run:
                 time.sleep(5)
             logging.debug("ThreadManager is no longer waiting")
-        except KeyboardInterrupt, ex:
+        except KeyboardInterrupt as ex:
             logging.debug("KeyboardInterrupt, shutting down.")
             manager.stop_all()
             self.shutdown_wait()

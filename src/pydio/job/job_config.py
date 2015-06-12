@@ -21,10 +21,13 @@
 import keyring
 from keyring.errors import PasswordSetError
 import json
-import urlparse
 import os
 import logging
 from pydio.utils.functions import Singleton
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
 
 
 @Singleton
@@ -128,7 +131,7 @@ class JobConfig:
 
     def make_id(self):
         i = 1
-        base_id = urlparse.urlparse(self.server).hostname + '-' + self.workspace
+        base_id = urlparse(self.server).hostname + '-' + self.workspace
         test_id = base_id
         while JobsLoader.Instance().contains_job(test_id):
             test_id = base_id + '-' + str(i)

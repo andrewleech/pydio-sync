@@ -64,8 +64,10 @@ class PydioScheduler():
         job_data_path = self.jobs_root_path / str(job_config.id)
         if not job_data_path.exists():
             job_data_path.mkdir(parents=True)
-        job_data_path = str(job_data_path).decode(guess_filesystemencoding())
-
+        if sys.version_info < (3, 0):
+            job_data_path = str(job_data_path).decode(guess_filesystemencoding())
+        else:
+            job_data_path = str(job_data_path)
         merger = ContinuousDiffMerger(job_config, job_data_path=job_data_path)
         try:
             merger.start()

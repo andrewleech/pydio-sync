@@ -48,7 +48,7 @@ import encodings
 # from flask_restful import Api
 import argparse
 import json
-import thread
+import threading
 import time
 import pydio.monkeypatch
 import pydio.utils.functions
@@ -104,23 +104,26 @@ DEFAULT_PARENT_PATH = get_user_home(APP_NAME)
 
 def main(argv=sys.argv[1:]):
     parser = argparse.ArgumentParser('Pydio Synchronization Tool')
+    
+    string = str if sys.version_info >= (3, 0) else unicode
+
     # Pass a server configuration via arguments
-    parser.add_argument('-s', '--server', help='Server URL, with http(s) and path to pydio', type=unicode,
+    parser.add_argument('-s', '--server', help='Server URL, with http(s) and path to pydio', type=string,
                         default='http://localhost')
-    parser.add_argument('-d', '--directory', help='Local directory', type=unicode, default=None)
-    parser.add_argument('-w', '--workspace', help='Id or Alias of workspace to synchronize', type=unicode, default=None)
+    parser.add_argument('-d', '--directory', help='Local directory', type=string, default=None)
+    parser.add_argument('-w', '--workspace', help='Id or Alias of workspace to synchronize', type=string, default=None)
     parser.add_argument('-r', '--remote_folder', help='Path to an existing folder of the workspace to synchronize',
-                        type=unicode, default=None)
-    parser.add_argument('-u', '--user', help='User name', type=unicode, default=None)
-    parser.add_argument('-p', '--password', help='Password', type=unicode, default=None)
+                        type=string, default=None)
+    parser.add_argument('-u', '--user', help='User name', type=string, default=None)
+    parser.add_argument('-p', '--password', help='Password', type=string, default=None)
     parser.add_argument('-dir', '--direction', help='Synchro Direction', type=str, default='bi')
     # Pass a configuration file
-    parser.add_argument('-f', '--file', type=unicode, help='Json file containing jobs configurations')
+    parser.add_argument('-f', '--file', type=string, help='Json file containing jobs configurations')
     # Pass a path to rdiff binary
-    parser.add_argument('-i', '--rdiff', type=unicode, help='Path to rdiff executable', default=None)
+    parser.add_argument('-i', '--rdiff', type=string, help='Path to rdiff executable', default=None)
     # Configure API access
-    parser.add_argument('--api_user', help='Set the agent API username (instead of random)', type=unicode, default=None)
-    parser.add_argument('--api_password', help='Set the agent API password (instead of random)', type=unicode, default=None)
+    parser.add_argument('--api_user', help='Set the agent API username (instead of random)', type=string, default=None)
+    parser.add_argument('--api_password', help='Set the agent API password (instead of random)', type=string, default=None)
     parser.add_argument('--api_address', help='Set the agent IP address. By default, no address means that local '
                                               'access only is allowed.', type=str, default=None)
     parser.add_argument('--api_port', help='Set the agent port. By default, will try to use 5556, and if not '
@@ -130,18 +133,19 @@ def main(argv=sys.argv[1:]):
     parser.add_argument('--diag-imports', help='Check imports and exit', action='store_true', default=False)
     parser.add_argument('--save-cfg', action='store_true', default=True)
     parser.add_argument('--extract_html', help='Utils for extracting HTML strings and compiling po files to json',
-                        type=unicode, default=False)
+                        type=string, default=False)
     parser.add_argument('--auto-start', action='store_true')
     parser.add_argument('-v', '--verbose', action='count', default=1)
     args, _ = parser.parse_known_args(argv)
 
     jobs_root_path = Path(__file__).parent / 'data'
     if not jobs_root_path.exists():
-        jobs_root_path = Path(DEFAULT_DATA_PATH.encode(guess_filesystemencoding()))
+        
+        jobs_root_path = Path(DEFAULT_DATA_PATH.encode(guess_filesystemencoding()) if sys.version_info < (3, 0) else DEFAULT_DATA_PATH)
         if not jobs_root_path.exists():
             jobs_root_path.mkdir(parents=True)
             # This is a first start
-            user_dir = unicode(get_user_home(APP_NAME))
+            user_dir = string(get_user_home(APP_NAME))
             if not os.path.exists(user_dir):
                 try:
                     os.mkdir(user_dir)
@@ -159,7 +163,7 @@ def main(argv=sys.argv[1:]):
         pydio.autostart.setup(argv)
         return 0
 
-    u_jobs_root_path = str(jobs_root_path).decode(guess_filesystemencoding())
+    u_jobs_root_path = str(jobs_root_path).decode(guess_filesystemencoding()) if sys.version_info < (3, 0) else str(jobs_root_path)
     config_manager = ConfigManager.Instance(configs_path=u_jobs_root_path, data_path=DEFAULT_PARENT_PATH)
 
     jobs_loader = JobsLoader.Instance(data_path=u_jobs_root_path)
@@ -225,7 +229,9 @@ def main(argv=sys.argv[1:]):
 
     try:
 
-        thread.start_new_thread(server.start_server, ())
+        thread = threading.Thread(target=server.start_server, name="web_server")
+        thread.daemon = True
+        thread.start()
         time.sleep(0.3)
         if not server.running:
             logging.error('Cannot start web server, exiting application')

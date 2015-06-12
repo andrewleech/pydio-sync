@@ -23,6 +23,8 @@ import stat
 import sys
 import os
 import time
+if sys.version_info > (3,):
+    long = int
 
 from watchdog.events import DirCreatedEvent, DirDeletedEvent, DirMovedEvent, \
     FileCreatedEvent, FileDeletedEvent, FileMovedEvent, FileModifiedEvent
@@ -98,7 +100,7 @@ class SnapshotDiffStart(DirectorySnapshotDiff):
 class LocalWatcher(threading.Thread):
     def __init__(self, local_path, data_path, event_handler):
         threading.Thread.__init__(self)
-        self.basepath = unicode(local_path)
+        self.basepath = os.path.abspath(local_path)
         self.observer = None
         self.job_data_path = data_path
         self.interrupt = False
@@ -106,7 +108,7 @@ class LocalWatcher(threading.Thread):
 
     def check_from_snapshot(self, sub_folder=None, state_callback=(lambda status: None)):
         from pydio.utils import i18n
-        _ = i18n.language.ugettext
+        _ = i18n.gettext
 
         logging.info('Scanning for changes since last application launch')
         if (not sub_folder and os.path.exists(self.basepath)) or (sub_folder and os.path.exists(self.basepath + sub_folder)):

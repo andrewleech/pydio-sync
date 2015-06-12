@@ -18,7 +18,7 @@
 #  The latest code can be found at <http://pyd.io/>.
 #
 from pydio.utils import i18n
-_ = i18n.language.ugettext
+_ = i18n.gettext
 
 class ProcessException(Exception):
     def __init__(self, src, operation, path, detail):

@@ -32,11 +32,12 @@
 #~ Imports
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-import os
+import os, sys
 import weakref
 import hashlib
 import werkzeug
-
+if sys.version_info > (3,):
+    long = int
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #~ Realm Digest Credentials Database
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,6 +238,7 @@ class DigestAuthentication(object):
         key = key.lower()
         def H(*args):
             x = ':'.join(map(str, args))
+            x = x.encode('utf-8') if sys.version_info >= (3, 0) else x
             return hashObj(x).hexdigest()
 
         H.__name__ = "H_"+key

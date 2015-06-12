@@ -23,6 +23,7 @@ from pydio.job.local_watcher import SnapshotDiffStart
 from pydio.job.localdb import SqlSnapshot
 import json
 import xml.etree.ElementTree as ET
+import six
 import os
 
 class Fs_state_checker(object):
@@ -59,7 +60,7 @@ class Fs_state_checker(object):
         sql_snapshot = self.remote_sql_snap
 
         for excluded in self.remote_excluded_files:
-            if dir_snapshot.has_key(excluded):
+            if excluded in dir_snapshot:
                 dir_snapshot.pop(excluded)
 
         if len(sql_snapshot) != len(dir_snapshot):
@@ -68,8 +69,8 @@ class Fs_state_checker(object):
         if not sql_snapshot:
             return True, None
 
-        for path, bytesize in sql_snapshot.iteritems():
-            if not dir_snapshot.has_key(path) and bytesize != dir_snapshot[path] and bytesize !=0 and dir_snapshot[path]!=0 and bytesize !=4096 and dir_snapshot[path]!=4096:
+        for path, bytesize in six.iteritems(sql_snapshot):
+            if not path in dir_snapshot and bytesize != dir_snapshot[path] and bytesize !=0 and dir_snapshot[path]!=0 and bytesize !=4096 and dir_snapshot[path]!=4096:
                 return False, None
         return True, dir_snapshot
 
@@ -79,12 +80,12 @@ class Fs_state_checker(object):
 
         l = [self.synced_path]
         """, '.*', '*/.*', '/recycle_bin*', '*.pydio_dl', '*.DS_Store', '.~lock.*'"""
-        for path, _ in dir_snap.iteritems():
+        for path, _ in six.iteritems(dir_snap):
             path = str(path)
             if path.endswith('\\.pydio_id') or path.startswith('.') or os.path.basename(path).startswith('.') or path.find('\\.') != -1 or path.endswith('.pydio_dl') or path.endswith('.DS_Store'):
                 l.append(path)
         for path in l:
-            if dir_snap.has_key(path):
+            if path in dir_snap:
                 dir_snap.pop(path)
 
         #comp = set(dir_snapshot._stat_snapshot.items()) & set(sql_snapshot._stat_snapshot.items())
@@ -94,10 +95,10 @@ class Fs_state_checker(object):
         if not len(dir_snap):
             return True, None
 
-        for path, stat in dir_snap.iteritems():
+        for path, stat in six.iteritems(dir_snap):
             size1 = sql_snap[path].st_size
             size2 = stat.st_size
-            if not sql_snap.has_key(path) and size1 != size2 and size1!=0 and size2!=0 and size1 !=4096 and size2!=4096:
+            if not path in sql_snap and size1 != size2 and size1!=0 and size2!=0 and size1 !=4096 and size2!=4096:
                 return False, None
 
         return True, dir_snap
@@ -113,7 +114,7 @@ class Fs_state_checker(object):
 
         #exclude .pydio files
         excluded_files_count = 0
-        for path, _ in local_snapshot.iteritems():
+        for path, _ in six.iteritems(local_snapshot):
             if path.find('.pydio') != -1:
                 excluded_files_count += 1
 
@@ -122,11 +123,11 @@ class Fs_state_checker(object):
         if not len(remote_snapshot):
             return True
 
-        for path, stat in local_snapshot.iteritems():
+        for path, stat in six.iteritems(local_snapshot):
             if path.find('.pydio_id') != -1:
                 continue
             path = (self.sdk.remote_folder + self.remove_prefix('local', path)).replace('\\', '/')
-            if not remote_snapshot.has_key(path):
+            if not path in remote_snapshot:
                 return False
             size = int(remote_snapshot[path])
             if stat.st_size != size and stat.st_size != 4096 and size != 0:
@@ -139,7 +140,6 @@ class Fs_state_checker(object):
         if text:
             return os.path.normpath(text)
         return ''
-        return False
 
     def remote_dir_snapshot_callback(self, element):
         if element:
