@@ -29,9 +29,10 @@ from pydio.utils.functions import hashfile
 from hashlib import sha256
 from hashlib import sha1
 try:
-    from urlparse import urlparse
+    from urlparse import urlparse, pathname2url
 except ImportError:
     from urllib.parse import urlparse
+    from urllib.request import pathname2url
 
 
 from requests.exceptions import ConnectionError, RequestException
@@ -113,7 +114,8 @@ class PydioSdk():
                 unicode_path = test
             except ValueError as e:
                 pass
-        return urllib.pathname2url(unicode_path.encode('utf-8'))
+
+        return pathname2url(unicode_path.encode('utf-8'))
 
     def normalize(self, unicode_path):
         if platform.system() == 'Darwin':
@@ -373,7 +375,7 @@ class PydioSdk():
         info = dict()
         info['max_seq'] = last_seq
         for line in resp.iter_lines(chunk_size=512):
-            if isinstance(line, (str, bytes)):
+            if isinstance(line, (str, bytes)) and len(line):
                 str_line = line.decode()
                 if str_line.startswith('LAST_SEQ'):
                     #call the merge function with NULL row
@@ -466,7 +468,7 @@ class PydioSdk():
         data = dict()
         maxlen = min(len(pathes), self.stat_slice_number)
         clean_pathes = list(map(lambda t: self.remote_folder + t.replace('\\', '/'),
-                           filter(lambda x: x != '', pathes[:maxlen])))
+                           list(filter(lambda x: x != '', pathes[:maxlen]))))
         data['nodes[]'] = list(map(lambda p: self.normalize(p), clean_pathes))
         url = self.url + action + self.urlencode_normalized(clean_pathes[0])
         try:
@@ -541,7 +543,7 @@ class PydioSdk():
         """
         data = dict()
         data['ignore_exists'] = 'true'
-        data['nodes[]'] = list(map(lambda t: self.normalize(self.remote_folder + t), filter(lambda x: x != '', pathes)))
+        data['nodes[]'] = list(map(lambda t: self.normalize(self.remote_folder + t), list(filter(lambda x: x != '', pathes))))
         url = self.url + '/mkdir' + self.urlencode_normalized(self.remote_folder + pathes[0])
         resp = self.perform_request(url=url, type='post', data=data)
         self.is_pydio_error_response(resp)

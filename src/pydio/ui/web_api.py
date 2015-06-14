@@ -33,7 +33,6 @@ import json
 import requests
 import keyring
 import xmltodict
-import types
 import logging
 import sys
 import os
@@ -222,7 +221,7 @@ class WorkspacesManager(Resource):
                                     proxies=ConfigManager.Instance().get_defined_proxies())
                 resp.raise_for_status()
                 try:
-                    app_data = json.loads(resp.content)
+                    app_data = resp.json()
                     app_name = ''
                     ajxpcores = app_data['plugins']['ajxpcore']
                     for core in ajxpcores:
@@ -242,7 +241,7 @@ class WorkspacesManager(Resource):
                                     proxies=ConfigManager.Instance().get_defined_proxies())
                 resp.raise_for_status()
                 try:
-                    user_data = json.loads(resp.content)
+                    user_data = resp.json()
                     user_display_name = ''
                     prefs = user_data['preferences']['pref']
                     for pref in prefs:
@@ -259,11 +258,11 @@ class WorkspacesManager(Resource):
             resp = requests.get(url, stream=True, auth=auth, verify=verify,
                                 proxies=ConfigManager.Instance().get_defined_proxies())
             resp.raise_for_status()
-            data = json.loads(resp.content)
+            data = resp.json()
             if 'repositories' in data and 'repo' in data['repositories']:
-                if isinstance(data['repositories']['repo'], types.DictType):
+                if isinstance(data['repositories']['repo'], dict):
                     data['repositories']['repo'] = [data['repositories']['repo']]
-                data['repositories']['repo'] = filter(lambda x: not x['@access_type'].startswith('ajxp_'), data['repositories']['repo'])
+                data['repositories']['repo'] = list(filter(lambda x: not x['@access_type'].startswith('ajxp_'), data['repositories']['repo']))
             if app_name:
                 data['application_title'] = app_name
             if user_display_name:
@@ -346,7 +345,7 @@ class FoldersManager(Resource):
             return [{'error':'Cannot load workspace'}]
         if not 'tree' in o['tree']:
             return []
-        if isinstance(o['tree']['tree'], types.DictType):
+        if isinstance(o['tree']['tree'], dict):
             return [o['tree']['tree']]
         return o['tree']['tree']
 

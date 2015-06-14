@@ -415,9 +415,7 @@ class ContinuousDiffMerger(threading.Thread):
                     continue
                 except Exception as e:
                     error = 'Error while connecting to remote server (%s), waiting for %i seconds before retempting ' % (str(e), self.offline_timer)
-                    logging.error(error)
-                    import traceback
-                    logging.debug(traceback.format_exc())
+                    logging.exception(error)
                     logger.log_state(_('Error while connecting to remote server (%s)') % str(e), "error")
                     self.marked_for_snapshot_pathes = []
                     self.sleep_offline()
@@ -480,7 +478,7 @@ class ContinuousDiffMerger(threading.Thread):
                     continue
 
                 self.global_progress['status_indexing'] = 0
-                import change_processor
+                from pydio.job import change_processor
                 self.global_progress['queue_length'] = changes_length
                 logging.info('Processing %i changes' % changes_length)
                 logger.log_state(_('Processing %i changes') % changes_length, "start")

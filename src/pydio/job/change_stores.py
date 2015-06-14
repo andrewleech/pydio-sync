@@ -303,8 +303,8 @@ class SqliteChangeStore():
             local_stats = sdk.bulk_stat(test_stats, with_hash=True)
             opposite_stats = opposite_sdk.bulk_stat(test_stats, with_hash=True)
 
-        to_remove = filter(lambda it: self.filter_change(it, local_stats, opposite_stats), changes)
-        return map(lambda row: str(row['row_id']), to_remove)
+        to_remove = list(filter(lambda it: self.filter_change(it, local_stats, opposite_stats), changes))
+        return list(map(lambda row: str(row['row_id']), to_remove))
 
     def clean_and_detect_conflicts(self, status_handler):
 

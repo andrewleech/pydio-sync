@@ -462,10 +462,12 @@ class SqlEventHandler(FileSystemEventHandler):
         self.base = basepath
         self.includes = includes
         self.excludes = excludes
-        db_handler = LocalDbHandler(job_data_path, basepath)
+        self.db_handler = LocalDbHandler(job_data_path, basepath)
         self.unique_id = hashlib.md5(job_data_path.encode(guess_filesystemencoding())).hexdigest()
-        self._db = db_handler._db
-        self.conn = db_handler.conn
+        self._db = self.db_handler._db
+        self.conn = sqlite3.connect(self._db, timeout=30)
+        self.conn.row_factory = sqlite3.Row
+        # self.conn = db_handler.conn
         self.reading = False
         self.last_write_time = 0
         self.db_wait_duration = 1
@@ -520,7 +522,7 @@ class SqlEventHandler(FileSystemEventHandler):
             if self.prevent_atomic_commit:
                 conn = self.transaction_conn
             else:
-                conn = self.conn
+                conn = sqlite3.connect(self._db, timeout=30)
 
             c = conn.cursor()
             target_id = None
@@ -576,7 +578,7 @@ class SqlEventHandler(FileSystemEventHandler):
             if self.prevent_atomic_commit:
                 conn = self.transaction_conn
             else:
-                conn = self.conn
+                conn = sqlite3.connect(self._db, timeout=30)
 
             conn.execute("DELETE FROM ajxp_index WHERE node_path LIKE ?", (self.remove_prefix(src_path) + '%',))
 
@@ -634,7 +636,7 @@ class SqlEventHandler(FileSystemEventHandler):
         if self.prevent_atomic_commit:
             conn = self.transaction_conn
         else:
-            conn = self.conn
+            conn = sqlite3.connect(self._db, timeout=30)
         if not force_insert:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
