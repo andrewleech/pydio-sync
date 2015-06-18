@@ -49,6 +49,7 @@ _ = i18n.gettext
 
 class ContinuousDiffMerger(threading.Thread):
     """Main Thread grabbing changes from both sides, computing the necessary changes to apply, and applying them"""
+    _counter = threading._count().__next__
 
     def __init__(self, job_config, job_data_path):
         """
@@ -57,7 +58,7 @@ class ContinuousDiffMerger(threading.Thread):
         :param job_data_path: Filesystem path where the job data are stored
         :return:
         """
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name="ContinuousDiffMerger-%d"%self._counter())
         self.last_run = 0
         self.configs_path = job_data_path
         self.job_config = job_config
