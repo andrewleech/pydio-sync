@@ -30,7 +30,7 @@ from pydio.job.localdb import DBCorruptedException
 class EventLogger():
 
     def __init__(self, job_data_path=''):
-        self.db = job_data_path + '/pydio.sqlite'
+        self.db = os.path.join(job_data_path, 'pydio.sqlite')
         if not os.path.exists(job_data_path):
             os.mkdir(job_data_path)
         if not os.path.exists(self.db):
@@ -40,11 +40,11 @@ class EventLogger():
         conn = sqlite3.connect(self.db)
         cursor = conn.cursor()
         if getattr(sys, 'frozen', False):
-            respath = (Path(sys._MEIPASS)) / 'res' / 'create.sql'
+            respath = os.path.join(sys._MEIPASS, 'res', 'create.sql')
         else:
-            respath = (Path(__file__)).parent.parent / 'res' / 'create.sql'
+            respath = os.path.join(os.path.dirname(__file__), '..', 'res', 'create.sql')
         logging.debug("respath: %s" % respath)
-        with open(str(respath), 'r') as inserts:
+        with open(respath, 'r') as inserts:
             for statement in inserts:
                 cursor.execute(statement)
         conn.close()
