@@ -144,7 +144,7 @@ def encode_multiparts(fields, basic_auth=None):
     header_body = BytesIO()
 
     # Remove closing boundary
-    lines = data.split("\r\n")
+    lines = data.decode('utf-8').split("\r\n")
     boundary = lines[0]
     lines = lines[0:len(lines)-2]
     header_body.write(b("\r\n".join(lines) + "\r\n"))

@@ -115,7 +115,11 @@ class PydioSdk():
             except ValueError as e:
                 pass
 
-        return pathname2url(unicode_path.encode('utf-8'))
+        if six.PY2:
+            path = unicode_path.encode('utf-8')
+        else:
+            path = unicode_path
+            return pathname2url(path)
 
     def normalize(self, unicode_path):
         if platform.system() == 'Darwin':
@@ -930,27 +934,28 @@ class PydioSdk():
 
         def parse_upload_rep(http_response):
             if http_response.headers.get('content-type') != 'application/octet-stream':
-                if six.u(http_response.text).count('message type="ERROR"'):
+                text = six.u(http_response.text)
+                if text.count('message type="ERROR"'):
 
-                    if six.u(http_response.text).lower().count("(507)"):
+                    if text.lower().count("(507)"):
                         raise PydioSdkDefaultException('507')
 
-                    if six.u(http_response.text).lower().count("(412)"):
+                    if text.lower().count("(412)"):
                         raise PydioSdkDefaultException('412')
 
                     import re
                     # Remove XML tags
-                    text = re.sub('<[^<]+>', '', six.u(http_response.text))
+                    text = re.sub('<[^<]+>', '', text)
                     raise PydioSdkDefaultException(text)
 
-                if six.u(http_response.text).lower().count("(507)"):
+                if text.lower().count("(507)"):
                     raise PydioSdkDefaultException('507')
 
-                if six.u(http_response.text).lower().count("(412)"):
+                if text.lower().count("(412)"):
                     raise PydioSdkDefaultException('412')
 
-                if six.u(http_response.text).lower().count("(410)") or six.u(http_response.text).lower().count("(411)"):
-                    raise PydioSdkDefaultException(six.u(http_response.text))
+                if text.lower().count("(410)") or text.lower().count("(411)"):
+                    raise PydioSdkDefaultException(text)
 
 
 

@@ -339,7 +339,7 @@ class ContinuousDiffMerger(threading.Thread):
                 except Exception as e:
                     self.interrupt = True
                     logger.log_state(_('Oops, error while indexing the local folder. Pausing the task.'), 'error')
-                    logging.error(e)
+                    logging.exception(e)
 
                 self.watcher_first_run = False
             self.watcher.start()
