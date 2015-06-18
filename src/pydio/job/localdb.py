@@ -57,10 +57,7 @@ def os_stat_dict(path):
 class SqlSnapshot(object):
 
     def __init__(self, basepath, job_data_path, sub_folder=None):
-        self._db = os.path.join(os.path.abspath(job_data_path), 'pydio.sqlite')
-        self.conn = sqlite3.connect(self._db, timeout=30)
-        self.conn.row_factory = sqlite3.Row
-
+        self.db = os.path.join(os.path.abspath(job_data_path), 'pydio.sqlite')
         self.basepath = basepath
         self._stat_snapshot = {}
         self._inode_to_path = {}
@@ -72,25 +69,25 @@ class SqlSnapshot(object):
             raise DBCorruptedException(oe)
 
     def load_from_db(self):
-
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
-            if self.sub_folder:
-                res = c.execute("SELECT node_path,stat_result FROM ajxp_index WHERE stat_result NOT NULL "
-                                "AND (node_path=? OR node_path LIKE ?)",
-                                (os.path.normpath(self.sub_folder), os.path.normpath(self.sub_folder+'/%'),))
-            else:
-                res = c.execute("SELECT node_path,stat_result FROM ajxp_index WHERE stat_result NOT NULL")
-            for row in res:
-                # if sys.version_info >= (3, 0):
-                #     stat_result = str(row['stat_result']).encode("latin-1")
-                # else:
-                #     stat_result = str(row['stat_result'])
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        if self.sub_folder:
+            res = c.execute("SELECT node_path,stat_result FROM ajxp_index WHERE stat_result NOT NULL "
+                            "AND (node_path=? OR node_path LIKE ?)",
+                            (os.path.normpath(self.sub_folder), os.path.normpath(self.sub_folder+'/%'),))
+        else:
+            res = c.execute("SELECT node_path,stat_result FROM ajxp_index WHERE stat_result NOT NULL")
+        for row in res:
+            try:
                 stat = dotdict(json.loads(row['stat_result']))
-                path = self.basepath + row['node_path']
-                self._stat_snapshot[path] = stat
-                self._inode_to_path[stat.st_ino] = path
+            except ValueError as ex:
+                c.close()
+                conn.close()
+                raise DBCorruptedException("Error loading from db")
+            path = self.basepath + row['node_path']
+            self._stat_snapshot[path] = stat
+            self._inode_to_path[stat.st_ino] = path
 
     def __sub__(self, previous_dirsnap):
         """Allow subtracting a DirectorySnapshot object instance from
@@ -153,12 +150,10 @@ class LocalDbHandler(object):
 
     def __init__(self, job_data_path='', base=''):
         self.base = base
-        self._db = os.path.join(os.path.abspath(job_data_path), 'pydio.sqlite')
-        self.conn = sqlite3.connect(self._db, timeout=30)
-        self.conn.row_factory = sqlite3.Row
+        self.db = os.path.join(os.path.abspath(job_data_path), 'pydio.sqlite')
         self.job_data_path = job_data_path
         self.event_handler = None
-        if not os.path.exists(self._db):
+        if not os.path.exists(self.db):
             self.init_db()
 
     def normpath(self, path):
@@ -172,23 +167,23 @@ class LocalDbHandler(object):
         self.event_handler = event_handler
 
     def init_db(self):
-        # conn = sqlite3.connect(self.db, timeout=15)
-        with closing(self.conn.cursor()) as cursor:
+        conn = sqlite3.connect(self.db, timeout=30)
+        with closing(conn.cursor()) as cursor:
             if getattr(sys, 'frozen', False):
-                respath = (Path(sys._MEIPASS)) / 'res' / 'create.sql'
+                respath = os.path.join(sys._MEIPASS,'res','create.sql')
             else:
-                respath = (Path(__file__)).parent.parent / 'res' / 'create.sql'
+                respath = os.path.join(os.path.dirname(__file__), '..', 'res', 'create.sql')
             logging.debug("respath: %s" % respath)
             with open(str(respath), 'r') as inserts:
                 for statement in inserts:
                     cursor.execute(statement)
-        self.conn.commit()
+        conn.commit()
 
     def find_node_by_id(self, node_path, with_status=False):
         node_path = self.normpath(node_path)
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             nid = False
             q = "SELECT node_id FROM ajxp_index WHERE node_path LIKE ?"
             if with_status:
@@ -201,9 +196,9 @@ class LocalDbHandler(object):
 
     def get_node_md5(self, node_path):
         node_path = self.normpath(node_path)
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             for row in c.execute("SELECT md5 FROM ajxp_index WHERE node_path LIKE ?", (node_path,)):
                 md5 = row['md5']
                 return md5
@@ -211,9 +206,9 @@ class LocalDbHandler(object):
 
     def get_node_status(self, node_path):
         node_path = self.normpath(node_path)
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             status = False
             for row in c.execute("SELECT ajxp_node_status.status FROM ajxp_index,ajxp_node_status "
                                  "WHERE ajxp_index.node_path = ? AND ajxp_node_status.node_id = ajxp_index.node_id", (node_path,)):
@@ -223,9 +218,9 @@ class LocalDbHandler(object):
         return status
 
     def list_conflict_nodes(self):
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             rows = []
             for row in c.execute("SELECT * FROM ajxp_index,ajxp_node_status "
                                  "WHERE (ajxp_node_status.status='CONFLICT' OR ajxp_node_status.status LIKE 'SOLVED%' ) AND ajxp_node_status.node_id = ajxp_index.node_id"):
@@ -238,16 +233,17 @@ class LocalDbHandler(object):
         return rows
 
     def count_conflicts(self):
-        with closing(self.conn.cursor()) as cursor:
+        conn = sqlite3.connect(self.db, timeout=30)
+        with closing(conn.cursor()) as cursor:
             c = 0
             for row in cursor.execute("SELECT count(node_id) FROM ajxp_node_status WHERE status='CONFLICT'"):
                 c = int(row[0])
         return c
 
     def list_solved_nodes_w_callback(self, cb):
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             for row in c.execute("SELECT * FROM ajxp_index,ajxp_node_status "
                                  "WHERE ajxp_node_status.status LIKE 'SOLVED%' AND ajxp_node_status.node_id = ajxp_index.node_id"):
                 d = {}
@@ -262,14 +258,15 @@ class LocalDbHandler(object):
         if detail:
             detail = json.dumps(detail)
         node_id = self.find_node_by_id(node_path, with_status=True)
-        with closing(self.conn.cursor()) as cursor:
+        conn = sqlite3.connect(self.db, timeout=30)
+        with closing(conn.cursor()) as cursor:
             if not node_id:
                 node_id = self.find_node_by_id(node_path, with_status=False)
                 if node_id:
                     cursor.execute("INSERT OR IGNORE INTO ajxp_node_status (node_id,status,detail) VALUES (?,?,?)", (node_id, status, detail))
             else:
                 cursor.execute("UPDATE ajxp_node_status SET status=?, detail=? WHERE node_id=?", (status, detail, node_id))
-        self.conn.commit()
+            conn.commit()
 
     def compare_raw_pathes(self, row1, row2):
         if row1['source'] != 'NULL':
@@ -283,9 +280,9 @@ class LocalDbHandler(object):
         return cmp1 == cmp2
 
     def get_last_operations(self):
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             operations = []
             for row in c.execute("SELECT type,location,source,target FROM ajxp_last_buffer"):
                 dRow = dict()
@@ -298,9 +295,9 @@ class LocalDbHandler(object):
         return operations
 
     def is_last_operation(self, location, type, source, target):
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
+        with closing(conn.cursor()) as c:
             for row in c.execute("SELECT id FROM ajxp_last_buffer WHERE type=? AND location=? AND source=? AND target=?", (type,location,source.replace("\\", "/"),target.replace("\\", "/"))):
                 return True
         return False
@@ -308,14 +305,16 @@ class LocalDbHandler(object):
 
     def buffer_real_operation(self, location, type, source, target):
         location = 'remote' if location == 'local' else 'local'
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        with closing(conn.cursor()) as c:
             c.execute("INSERT INTO ajxp_last_buffer (type,location,source,target) VALUES (?,?,?,?)", (type, location, source.replace("\\", "/"), target.replace("\\", "/")))
-        self.conn.commit()
+            conn.commit()
 
     def clear_operations_buffer(self):
-        with closing(self.conn.cursor()) as c:
+        conn = sqlite3.connect(self.db, timeout=30)
+        with closing(conn.cursor()) as c:
             c.execute("DELETE FROM ajxp_last_buffer")
-        self.conn.commit()
+            conn.commit()
 
 
     def get_local_changes_as_stream(self, seq_id, flatten_and_store_callback):
@@ -331,10 +330,10 @@ class LocalDbHandler(object):
         info = dict()
         try:
             logging.debug("Local sequence " + str(seq_id))
-            # conn = sqlite3.connect(self.db, timeout=15)
-            # conn.row_factory = sqlite3.Row
+            conn = sqlite3.connect(self.db, timeout=30)
+            conn.row_factory = sqlite3.Row
             # c = conn.cursor()
-            with closing(self.conn.cursor()) as c:
+            with closing(conn.cursor()) as c:
                 info['max_seq'] = seq_id
 
                 for line in c.execute("SELECT seq , ajxp_changes.node_id ,  type ,  "
@@ -365,57 +364,58 @@ class LocalDbHandler(object):
 
         logging.debug("Local sequence " + str(seq_id))
         last = seq_id
-        # conn = sqlite3.connect(self.db, timeout=15)
-        # conn.row_factory = sqlite3.Row
+        conn = sqlite3.connect(self.db, timeout=30)
+        conn.row_factory = sqlite3.Row
         # c = conn.cursor()
-        with closing(self.conn.cursor()) as c:
-            previous_node_id = -1
-            previous_row = None
-            deletes = []
+        previous_node_id = -1
+        previous_row = None
+        deletes = []
+        with closing(conn.cursor()) as c:
 
-            for row in c.execute("SELECT seq , ajxp_changes.node_id ,  type ,  "
+            rows = c.execute("SELECT seq , ajxp_changes.node_id ,  type ,  "
                                  "source , target, ajxp_index.bytesize, ajxp_index.md5, ajxp_index.mtime, "
                                  "ajxp_index.node_path, ajxp_index.stat_result FROM ajxp_changes LEFT JOIN ajxp_index "
                                  "ON ajxp_changes.node_id = ajxp_index.node_id "
-                                 "WHERE seq > ? ORDER BY ajxp_changes.node_id, seq ASC", (seq_id,)):
-                drow = dict(row)
-                drow['node'] = dict()
-                if not row['node_path'] and (not row['source'] or row['source'] == 'NULL') and (not row['target'] or row['source'] == 'NULL'):
-                    continue
-                if self.is_last_operation('local', row['type'], row['source'], row['target']):
-                    continue
-                for att in ('mtime', 'md5', 'bytesize', 'node_path',):
-                    drow['node'][att] = row[att]
-                    drow.pop(att, None)
-                if drow['node_id'] == previous_node_id and self.compare_raw_pathes(drow, previous_row):
-                    previous_row['target'] = drow['target']
-                    previous_row['seq'] = drow['seq']
-                    if drow['type'] == 'path' or drow['type'] == 'content':
-                        if previous_row['type'] == 'delete':
-                            previous_row['type'] = drow['type']
-                        elif previous_row['type'] == 'create':
-                            previous_row['type'] = 'create'
-                        else:
-                            previous_row['type'] = drow['type']
-                    elif drow['type'] == 'create':
+                                 "WHERE seq > ? ORDER BY ajxp_changes.node_id, seq ASC", (seq_id,))
+        for row in rows:
+            drow = dict(row)
+            drow['node'] = dict()
+            if not row['node_path'] and (not row['source'] or row['source'] == 'NULL') and (not row['target'] or row['source'] == 'NULL'):
+                continue
+            if self.is_last_operation('local', row['type'], row['source'], row['target']):
+                continue
+            for att in ('mtime', 'md5', 'bytesize', 'node_path',):
+                drow['node'][att] = row[att]
+                drow.pop(att, None)
+            if drow['node_id'] == previous_node_id and self.compare_raw_pathes(drow, previous_row):
+                previous_row['target'] = drow['target']
+                previous_row['seq'] = drow['seq']
+                if drow['type'] == 'path' or drow['type'] == 'content':
+                    if previous_row['type'] == 'delete':
+                        previous_row['type'] = drow['type']
+                    elif previous_row['type'] == 'create':
                         previous_row['type'] = 'create'
                     else:
                         previous_row['type'] = drow['type']
-
+                elif drow['type'] == 'create':
+                    previous_row['type'] = 'create'
                 else:
-                    if previous_row is not None and (previous_row['source'] != previous_row['target'] or previous_row['type'] == 'content'):
-                        previous_row['location'] = 'local'
-                        accumulator['data'][previous_row['seq']] = previous_row
-                        key = previous_row['source'] if previous_row['source'] != 'NULL' else previous_row['target']
-                        if not key in accumulator['path_to_seqs']:
-                            accumulator['path_to_seqs'][key] = []
-                        accumulator['path_to_seqs'][key].append(previous_row['seq'])
-                        if previous_row['type'] == 'delete':
-                            deletes.append(previous_row['seq'])
+                    previous_row['type'] = drow['type']
 
-                    previous_row = drow
-                    previous_node_id = drow['node_id']
-                last = max(row['seq'], last)
+            else:
+                if previous_row is not None and (previous_row['source'] != previous_row['target'] or previous_row['type'] == 'content'):
+                    previous_row['location'] = 'local'
+                    accumulator['data'][previous_row['seq']] = previous_row
+                    key = previous_row['source'] if previous_row['source'] != 'NULL' else previous_row['target']
+                    if not key in accumulator['path_to_seqs']:
+                        accumulator['path_to_seqs'][key] = []
+                    accumulator['path_to_seqs'][key].append(previous_row['seq'])
+                    if previous_row['type'] == 'delete':
+                        deletes.append(previous_row['seq'])
+
+                previous_row = drow
+                previous_node_id = drow['node_id']
+            last = max(row['seq'], last)
 
         if previous_row is not None and (previous_row['source'] != previous_row['target'] or previous_row['type'] == 'content'):
             previous_row['location'] = 'local'
@@ -464,10 +464,7 @@ class SqlEventHandler(FileSystemEventHandler):
         self.excludes = excludes
         self.db_handler = LocalDbHandler(job_data_path, basepath)
         self.unique_id = hashlib.md5(job_data_path.encode(guess_filesystemencoding())).hexdigest()
-        self._db = self.db_handler._db
-        self.conn = sqlite3.connect(self._db, timeout=30)
-        self.conn.row_factory = sqlite3.Row
-        # self.conn = db_handler.conn
+        self.db = self.db_handler.db
         self.reading = False
         self.last_write_time = 0
         self.db_wait_duration = 1
@@ -522,8 +519,9 @@ class SqlEventHandler(FileSystemEventHandler):
             if self.prevent_atomic_commit:
                 conn = self.transaction_conn
             else:
-                conn = sqlite3.connect(self._db, timeout=30)
+                conn = sqlite3.connect(self.db, timeout=30)
 
+            conn.row_factory = sqlite3.Row
             c = conn.cursor()
             target_id = None
             node_id = None
@@ -578,7 +576,7 @@ class SqlEventHandler(FileSystemEventHandler):
             if self.prevent_atomic_commit:
                 conn = self.transaction_conn
             else:
-                conn = sqlite3.connect(self._db, timeout=30)
+                conn = sqlite3.connect(self.db, timeout=30)
 
             conn.execute("DELETE FROM ajxp_index WHERE node_path LIKE ?", (self.remove_prefix(src_path) + '%',))
 
@@ -599,7 +597,7 @@ class SqlEventHandler(FileSystemEventHandler):
         try:
             src_path = self.get_unicode_path(event.src_path)
             if event.is_directory:
-                files_in_dir = [src_path+"/"+f for f in os.listdir(src_path)]
+                files_in_dir = [os.path.join(src_path,f) for f in os.listdir(src_path)]
                 if len(files_in_dir) > 0:
                     modified_filename = max(files_in_dir, key=os.path.getmtime)
                 else:
@@ -636,7 +634,7 @@ class SqlEventHandler(FileSystemEventHandler):
         if self.prevent_atomic_commit:
             conn = self.transaction_conn
         else:
-            conn = sqlite3.connect(self._db, timeout=30)
+            conn = sqlite3.connect(self.db, timeout=30)
         if not force_insert:
             conn.row_factory = sqlite3.Row
             c = conn.cursor()
@@ -760,8 +758,7 @@ class SqlEventHandler(FileSystemEventHandler):
         return None
 
     def begin_transaction(self):
-        self.transaction_conn = sqlite3.connect(self._db, timeout=15)
-        self.transaction_conn.row_factory = sqlite3.Row
+        self.transaction_conn = sqlite3.connect(self.db, timeout=30)
         self.prevent_atomic_commit = True
 
     def end_transaction(self):
